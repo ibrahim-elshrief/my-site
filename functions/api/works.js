@@ -105,19 +105,46 @@ async function deleteWork(body, env) {
 
 // ==== رفع ملف على Google Drive عن طريق Apps Script ====
 async function uploadToDrive(fileData, fileName, mimeType, env) {
-  const response = await fetch(env.APPS_SCRIPT_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      apiKey: env.APPS_SCRIPT_KEY,
-      action: 'upload',
-      fileData: fileData,
-      fileName: fileName,
-      mimeType: mimeType
-    })
-  });
+  // تحقق أول حاجة إن المتغيرات موجودة فعلاً
+  if (!env.APPS_SCRIPT_URL) {
+    return { success: false, error: 'APPS_SCRIPT_URL غير موجود في متغيرات البيئة' };
+  }
+  if (!env.APPS_SCRIPT_KEY) {
+    return { success: false, error: 'APPS_SCRIPT_KEY غير موجود في متغيرات البيئة' };
+  }
 
-  return await response.json();
+  var response;
+  try {
+    response = await fetch(env.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: env.APPS_SCRIPT_KEY,
+        action: 'upload',
+        fileData: fileData,
+        fileName: fileName,
+        mimeType: mimeType
+      }),
+      redirect: 'follow'
+    });
+  } catch (fetchErr) {
+    return { success: false, error: 'فشل الاتصال بـ Apps Script: ' + fetchErr.toString() };
+  }
+
+  const rawText = await response.text();
+
+  var parsed;
+  try {
+    parsed = JSON.parse(rawText);
+  } catch (parseErr) {
+    // لو الرد مش JSON، يبقى فيه مشكلة في الـ Apps Script نفسه (مش في كودنا هنا)
+    return {
+      success: false,
+      error: 'رد غير متوقع من Apps Script (HTTP ' + response.status + '): ' + rawText.substring(0, 300)
+    };
+  }
+
+  return parsed;
 }
 
 // ==== دالة مساعدة لإرجاع رد JSON ====
